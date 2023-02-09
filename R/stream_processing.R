@@ -1,52 +1,58 @@
-# can't open .geno file in gedit
+# can't open .geno file in RStudio
 # but I can look at it with less: What's going on here?
-
-ind_file <- "/home/schmid/agora/mobest.analysis.2022/data/genotype_data/snp_subsets/unfiltered_snp_selection_with_modern_reference_pops/unfiltered_snp_selection_with_modern_reference_pops.ind"
-geno_file <- "/home/schmid/agora/mobest.analysis.2022/data/genotype_data/snp_subsets/unfiltered_snp_selection_with_modern_reference_pops/unfiltered_snp_selection_with_modern_reference_pops.geno"
 
 #### prepare data ####
 
 # read small ind file to extract the individual names
-inds <- readr::read_tsv(ind_file, col_names = c("id", "sex", "group"))
+inds <- readr::read_tsv("data/Europe.ind", col_names = c("id", "sex", "group"))
 
 # create an LaF connection (https://github.com/djvanderlaan/LaF) to the large .geno file
-laf_geno <- LaF::laf_open_fwf(
-  geno_file, 
+laf_geno_europe <- LaF::laf_open_fwf(
+  "data/Europe.geno", 
   column_types = rep("integer", nrow(inds)),
   column_widths = rep(1, nrow(inds)), 
   column_names = inds$id
 )
 
-class(laf_geno)
-str(laf_geno)
+class(laf_geno_europe)
+str(laf_geno_europe)
 
 #### examples of stream processing ####
 
-# subset columns
-chunked::read_laf_chunkwise(laf_geno, chunk_size = 10000) |>
-  dplyr::select(1:100) |>
-  chunked::write_table_chunkwise(file = "data/prep_first100.geno", sep = "", col.names = F, row.names = F)
-# watch the file grow on the command line: watch wc -l data/prep_first100.geno
-# ignore error at the end: write_table_chunkwise tries to read the file after writing (T pipe!) and fails
+## example 1: subset columns ##
 
+# read .geno file in chunks of 10000 lines
+chunked::read_laf_chunkwise(laf_geno_europe, chunk_size = 10000) |>
+  # extract the first 50 rows (individuals)
+  dplyr::select(1:50) |> # dplyr::select is replaced by chunked:::select.chunkwise
+  # write the modified result back to the file system
+  chunked::write_table_chunkwise(file = "data/first50.geno", sep = "", col.names = F, row.names = F)
+
+# watch the file grow on the command line: watch wc -l data/first50.geno
+# ignore error at the end: write_table_chunkwise tries to read the file after writing (like a T pipe!) and fails
+
+## example 2: modify values ##
+
+# establish another LaF connection to the new, smaller file
 laf_geno <- LaF::laf_open_fwf(
-  "data/prep_first100.geno", 
-  column_types = rep("integer", 100),
-  column_widths = rep(1, 100), 
-  column_names = inds$id[1:100]
+  "data/prep_first50.geno", 
+  column_types = rep("integer", 50),
+  column_widths = rep(1, 50), 
+  column_names = inds$id[1:50]
 )
 
-# change values
 chunked::read_laf_chunkwise(laf_geno, chunk_size = 10000) |>
-  dplyr::mutate(dplyr::across(.fns = \(x) ifelse(x == 1, 3, x) )) |>
-  chunked::write_table_chunkwise(file = "data/nine2eight.geno", sep = "", col.names = F, row.names = F)
+  # heterozygous -> 1, missing and homozygous -> 0
+  dplyr::mutate(
+    dplyr::across(.fns = \(x) dplyr::case_when(x == 1 ~ 1, TRUE ~ 0))
+  ) |>
+  chunked::write_table_chunkwise(file = "data/binary.geno", sep = "", col.names = F, row.names = F)
 
-# summary statistics
-# read .geno file in chunks of 5000 lines
+## example 3: calculate summary statistics ##
+
 result1 <- chunked::read_laf_chunkwise(laf_geno, chunk_size = 10000) |>
   # fold chunk-wise to count non-missing SNPs (!=9)
-  # dplyr::summarise is actually overwritten by chunked:::summarise.chunkwise
-  dplyr::summarise(
+  dplyr::summarise( 
     dplyr::across(.fns = \(x) sum(x != 9))
   ) |>
   # transform intermediate result to tibble
@@ -59,8 +65,12 @@ result1 <- chunked::read_laf_chunkwise(laf_geno, chunk_size = 10000) |>
 
 #### adding a progress indicator ####
 
-progresso <- function(x, chunk_size) {
-  print_progress <- \(x) { paste("Nr of SNPs aggregated:", x) |> message() }
+print_progress <- function(x) {
+  pretty_x <- format(x, big.mark = ",", scientific = FALSE)
+  paste("Nr of SNPs aggregated:", pretty_x) |> message()
+}
+
+chunk_progress <- function(x, chunk_size) {
   count <- 0
   x$first_chunk()
   count <- count + chunk_size
@@ -74,7 +84,7 @@ progresso <- function(x, chunk_size) {
 
 chunk_size <- 20000
 result2 <- chunked::read_laf_chunkwise(laf_geno, chunk_size = chunk_size) |>
-  progresso(chunk_size) |>
+  chunk_progress(chunk_size) |>
   dplyr::summarise(
     dplyr::across(.fns = \(x) sum(x != 9))
   ) |>
