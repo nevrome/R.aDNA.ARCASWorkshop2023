@@ -24,6 +24,8 @@ pca_out$pca.sample_coordinates$Class |> table()
 
 anno_pca <- dplyr::left_join(anno, pca_out$pca.sample_coordinates, by = c("ID" = "Group"))
 
+readr::write_csv(anno_pca, file = "data/Europe_PCA.anno")
+
 library(ggplot2)
 
 p1 <- ggplot() +
