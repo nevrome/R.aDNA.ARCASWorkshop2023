@@ -1,4 +1,5 @@
 # the data for this analysis was copied from https://github.com/nevrome/mobest.analysis.2022
+# this script compiles it for a simple example dataset
 
 load("../mobest.analysis.2022/data/genotype_data/janno_final.RData")
 
@@ -22,7 +23,7 @@ anno_ancient <- janno_final |>
     Age_Stop = Date_BC_AD_Stop_Derived
   )
 
-anno <- dplyr::left_join(anno_minimal, anno_ancient,  by = "ID") |>
+anno <- dplyr::left_join(anno_minimal, anno_ancient, by = "ID") |>
   dplyr::mutate(
     Sample_Type = ifelse(is.na(Age_Mean), "modern", "ancient"), .before = "ID"
   )
