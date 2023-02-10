@@ -1,16 +1,21 @@
-# can't open .geno file in RStudio
-# but I can look at it with less: What's going on here?
+# I can't open the .geno file in RStudio - it's too big.
+# I can try to open it with gedit, but it takes forever to load.
+# But I can easily look at it with less: What's going on here?
+# less "streams" the data, so it only loads into memory what it currently needs.
+# R generally does not stream information. It loads everything into memory.
+# This script introduce two packages that allow (very basic) stream processing in R.
 
 #### prepare data ####
 
 # read small ind file to extract the individual names
 inds <- readr::read_tsv("data/Europe.ind", col_names = c("id", "sex", "group"))
 
-# create an LaF connection (https://github.com/djvanderlaan/LaF) to the large .geno file
+# create a streaming connection to the large .geno file with LaF
+# (https://github.com/djvanderlaan/LaF)
 laf_geno_europe <- LaF::laf_open_fwf(
   "data/Europe.geno", 
-  column_types = rep("integer", nrow(inds)),
   column_widths = rep(1, nrow(inds)), 
+  column_types = rep("integer", nrow(inds)),
   column_names = inds$id
 )
 
@@ -23,12 +28,12 @@ str(laf_geno_europe)
 
 # read .geno file in chunks of 10000 lines
 chunked::read_laf_chunkwise(laf_geno_europe, chunk_size = 10000) |>
-  # extract the first 50 rows (individuals)
+  # extract the first 50 cols (individuals)
   dplyr::select(1:50) |> # dplyr::select is replaced by chunked:::select.chunkwise
   # write the modified result back to the file system
   chunked::write_table_chunkwise(file = "data/first50.geno", sep = "", col.names = F, row.names = F)
 
-# watch the file grow on the command line: watch wc -l data/first50.geno
+# watch the file grow on the command line: watch wc -l first50.geno
 # ignore error at the end: write_table_chunkwise tries to read the file after writing (like a T pipe!) and fails
 
 ## example 2: modify values ##
