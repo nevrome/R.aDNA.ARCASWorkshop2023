@@ -53,3 +53,10 @@ ggplot() +
   ) -
   plotly::ggplotly
 
+#### one area through time ####
+
+anno |>
+  dplyr::filter(Lon >= 10 & Lon <= 13 & Lat >= 51 & Lat <= 53) |>
+  sf::st_as_sf(coords = c("Lon", "Lat"), crs = 4326) |>
+  mapview::mapview()
+
