@@ -55,8 +55,22 @@ ggplot() +
 
 #### one area through time ####
 
-anno |>
-  dplyr::filter(Lon >= 10 & Lon <= 13 & Lat >= 51 & Lat <= 53) |>
+saxony_anhalt <- anno_pca |> 
+  dplyr::filter(Lon >= 10 & Lon <= 13 & Lat >= 51 & Lat <= 53)
+
+saxony_anhalt |>
   sf::st_as_sf(coords = c("Lon", "Lat"), crs = 4326) |>
   mapview::mapview()
+
+ggplot() +
+  geom_point(
+    data = anno_pca |> dplyr::filter(Sample_Type == "modern"),
+    mapping = aes(x = PC1, y = PC2, text = Group)
+  ) +
+  geom_point(
+    data = saxony_anhalt |> dplyr::filter(Age_Mean < -6000),
+    mapping = aes(x = PC1, y = PC2, text = Group),
+    color = "red"
+  ) -
+  plotly::ggplotly
 
